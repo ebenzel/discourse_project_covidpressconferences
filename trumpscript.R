@@ -23,7 +23,7 @@ words <- speeches_init[seq(2, lines, by = 2),1]
 speeches <- tibble(speaker = speaker$X1, words = words$X1)
 
 #remove colons and time stamps
-speeches$speaker <- sapply(strsplit(speaker,":"), function(x) x[1])
+speeches$speaker <- sapply(strsplit(speeches$speaker,":"), function(x) x[1])
 
 #clean duplicate speaker titles
 speeches$speaker[grep("President Trump",speeches$speaker)] <- "Donald Trump"
@@ -45,18 +45,22 @@ for(name in pressnames){
         speeches$speaker[grep(name,speeches$speaker)] <- "Press"
 }
 
-speeches <- filter(speeches, speaker != "Niren Chaudhary",speaker != "Denton McLane")
-
 #create version of data set grouped into role: pres, whitehouse officials, drs, press
-#cabinet <- c("Betsy DeVos", "Bill Bar", "Larry Kudlow", "Mike Pence", "Sonny Perdue")
-#for(name in cabinet){
-        speeches$speaker[grep(name,speeches$speaker)] <- "whitehouse"
-#}
-#doctors <- c("Anthony Fauci", "Deborah Birx")
-#for(name in doctors){
-        speeches$speaker[grep(name,speeches$speaker)] <- "doctors"
-#}
+speeches <- add_column(speeches, position = NA)
 
+cabinet <- c("Betsy DeVos", "Bill Bar", "Larry Kudlow", "Mike Pence", "Sonny Perdue")
+for(name in cabinet){
+        speeches$position[grep(name,speeches$speaker)] <- "whitehouse"
+}
+doctors <- c("Anthony Fauci", "Deborah Birx")
+for(name in doctors){
+        speeches$position[grep(name,speeches$speaker)] <- "doctor"
+}
+business <- c("Niren Chaudhary", "Denton McLane")
+for(name in business){
+        speeches$position[grep(name,speeches$speaker)] <- "business"
+}
+speeches$position[grep("Donald Trump", speeches$speaker)] <- "president"
 
 #tidy the data file
 speech_words <- speeches %>%
