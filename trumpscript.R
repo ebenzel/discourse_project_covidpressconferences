@@ -5,18 +5,22 @@ stop_words_found <- tibble(word = c("the","we're", "it's", "that's", "you're", "
 
 
 #import speeches from raw transcript
-speeches_init <- data.frame()
-for(i in c(23:31)){
-        var <- read.table(paste(i, ".txt", sep = ""),sep="\n")
+speeches_init <- tibble(X1 = character())
+for(i in c(23:27,29:31)){
+        var <- read_delim(paste(".\\data\\",i, ".txt", sep = ""), 
+                          delim ="\n", 
+                          col_names = FALSE, 
+                          col_types = cols(col_character()))
         speeches_init <- bind_rows(speeches_init,var)
 }
+
 
 #create data frame with speaker and speech from the speaker 
 lines <- nrow(speeches_init)
 speaker <- speeches_init[seq(1, lines - 1, by = 2),1]
 words <- speeches_init[seq(2, lines, by = 2),1]
 
-speeches <- tibble(speaker, words)
+speeches <- tibble(speaker = speaker$X1, words = words$X1)
 
 #remove colons and time stamps
 speeches$speaker <- sapply(strsplit(speaker,":"), function(x) x[1])
