@@ -1,7 +1,13 @@
 library(tidyverse)
 library(tidytext)
+library(lubridate)
 library(jtools)
+library(gt)
+library(textdata)
 data(stop_words)
+get_sentiments("afinn")
+get_sentiments("bing")
+get_sentiments("nrc")
 
 #import speeches from raw transcript
 speeches_init <- tibble(X1 = character(), date = character())
@@ -18,12 +24,21 @@ for(f in filenames){
 }
 
 
-#create data frame with speaker and speech from the speaker 
+#create data frame with speaker and speech from the speaker and clean date
 lines <- nrow(speeches_init)
 speaker <- speeches_init[seq(1, lines - 1, by = 2),1]
 words <- speeches_init[seq(2, lines, by = 2),1]
 words$X1 <- sapply(words$X1, tolower)
+
 dates <- speeches_init[seq(2, lines, by = 2),2]
+dates <- sapply(strsplit(dates$date,".t"), function(x) x[1])
+for(i in 1:length(dates)){
+        dates[i] <- gsub("_"," ", dates[i])
+        dates[i] <- paste(dates[i]," 2020")
+}
+dates <- sapply(dates, mdy)
+dates <- tibble(date = as_date(dates,origin = lubridate::origin))
+
 speeches <- tibble(date = dates$date,speaker = speaker$X1, words = words$X1)
 
 #remove colons and time stamps
@@ -105,7 +120,7 @@ whitehouse <- c("Betsy DeVos", "Bill Bar", "Larry Kudlow", "Mike Pence", "Sonny 
                 "Kevin McCarthy", "Eugene Scalia", "Jared Kushner", "Jovita Carranza", "Robert O’Brien",
                 "Steven Mnuchin", "Mark Esper", "Robert Wilkie", "Mike Pompeo", "Pete Gaynor", "Mark Milley")
 for(name in whitehouse){
-        positions$position[grep(name,positions$speaker)] <- "Whitehouse Staff"
+        positions$position[grep(name,positions$speaker)] <- "Whitehouse"
 }
 doctors <- c("Anthony Fauci", "Deborah Birx","Anne Schuchat","Robert Kadlec", "Stephen Hahn", "Brett Giroir",
              "Robert Redfield","Jerome Adams", "Ben Carson")
@@ -117,9 +132,8 @@ business <- c("Niren Chaudhary", "Denton McLane","Greg Hayes", "David Taylor", "
 for(name in business){
         positions$position[grep(name,positions$speaker)] <- "Business"
 }
-positions$position[grep("Donald Trump", positions$speaker)] <- "President"
+positions$position[grep("Donald Trump", positions$speaker)] <- "Trump"
 positions$position[grep("Press", positions$speaker)] <- "Press"
-
 
 #tidy text data
 
@@ -131,11 +145,33 @@ word_data<- speeches %>%
 
 word_data$word <- sapply(word_data$word, function(x) gsub("’", "'", x = x))
 
+#word count by day by position plot
+speech_words_day <- word_data %>%
+        group_by(position, date) %>%
+        count(word, sort = TRUE)
+
+total_words_day <- speech_words_day %>%
+        group_by(position, date) %>%
+        summarize(total = sum(n))
+
+spread_dates <- spread(total_words_day, position, total)
+spread_dates <- mutate(spread_dates, total = sum(Business,Doctor,Press,Trump,Whitehouse, na.rm = TRUE))
+spread_dates %>% select(date,Trump,Whitehouse,Doctor,Business,Press)
+
+total_words_day %>%
+        ggplot(aes(x = date, y =total, fill = position)) +
+        geom_col() +
+        scale_x_date() +
+        theme_apa() +
+        scale_fill_brewer(palette = "Set1") +
+        labs(x = "Press Conference Date", y = "Total Words Spoken")
+dev.copy(png,"Total_words_by_date.png")
+dev.off()
 
 #create word frequency frames by speaker
 speech_words_speaker <- word_data %>%
         group_by(speaker) %>%
-        count(word, sort = TRUE) 
+        count(word) 
 
 total_words_speaker <- speech_words_speaker %>%
         group_by(speaker) %>%
@@ -159,7 +195,7 @@ speech_words_speaker %>%
         group_by(speaker) %>%
         summarise(total = sum(n)) %>%
         filter(total > 100) %>%
-        arrange(total)
+        arrange(total) %>%
         ggplot(aes(x = reorder(speaker, total), y = total)) +
         geom_col() +
         coord_flip() +
@@ -168,7 +204,7 @@ speech_words_speaker %>%
 dev.copy(png,"Total_words_by_speaker.png")
 dev.off()
 
-word_data%>%
+speech_words_position %>%
         group_by(position) %>%
         summarise(total = sum(n)) %>%
         ggplot(aes(x = reorder(position, total), y = total)) +
@@ -178,8 +214,6 @@ word_data%>%
         theme_apa()
 dev.copy(png,"Total_words_by_position.png")
 dev.off()
-
-# Create histogram of words per day broken down by position
 
 
 #examine word frequencies without stop words
@@ -213,49 +247,5 @@ gd %>%
         theme_apa() +
         coord_flip()
 
-# create word proportion graph by president
-speech_words_stop %>%
-        arrange(desc(n)) %>%
-        mutate(word = factor(word, levels = rev(unique(word)))) %>%
-        filter(position == "president") %>% 
-        #group_by(position) %>%
-        top_n(60,n) %>%
-        #ungroup() %>%
-        
-        ggplot(aes(x = word, n/total, fill = position)) +
-        geom_col(stat = "identity", show.legend = FALSE) +
-        labs(x = NULL, y = "n") +
-        coord_flip()
-
-#examine word frequency using tf-idf 
-
-speech_words <- speech_words %>%
-        bind_tf_idf(word, speaker, n)
-
-speech_words %>%
-        select(-total) %>%
-        arrange(desc(tf_idf))
-
-speech_words_stop %>%
-        arrange(desc(tf_idf)) %>%
-        mutate(word = factor(word, levels = rev(unique(word)))) %>% 
-        group_by(position) %>% 
-        top_n(15) %>% 
-        ungroup() %>%
-        ggplot(aes(word, tf_idf, fill = position)) +
-        geom_col(show.legend = FALSE) +
-        labs(x = NULL, y = "tf-idf") +
-        facet_wrap(~position, ncol = 2, scales = "free") +
-        coord_flip()
-
-speech_words_stop %>%
-        arrange(desc(n)) %>%
-        mutate(word = factor(word, levels = rev(unique(word)))) %>% 
-        group_by(speaker) %>% 
-        top_n(15) %>% 
-        ungroup() %>%
-        ggplot(aes(word, n, fill = speaker)) +
-        geom_col(show.legend = FALSE) +
-        labs(x = NULL, y = "n") +
-        facet_wrap(~speaker, ncol = 2, scales = "free") +
-        coord_flip()
+# sentiment analyis by position
+get_sentiments("afinn")
