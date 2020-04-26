@@ -157,14 +157,9 @@ total_words_day <- speech_words_day %>%
         group_by(position, date) %>%
         summarize(total = sum(n))
 
-#summarize data by first half, second half
+#summarize data by frequency of words per day
 total_words_day %>%
         filter(position)
-
-
-spread_dates <- spread(total_words_day, position, total)
-spread_dates <- mutate(spread_dates, total = sum(Business,Doctor,Press,Trump,Whitehouse, na.rm = TRUE))
-spread_dates %>% select(date,Trump,Whitehouse,Doctor,Business,Press)
 
 total_words_day %>%
         ggplot(aes(x = date, y = total)) +
