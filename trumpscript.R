@@ -157,13 +157,20 @@ total_words_day <- speech_words_day %>%
         group_by(position, date) %>%
         summarize(total = sum(n))
 
+#summarize data by first half, second half
+total_words_day %>%
+        filter(position)
+
+
 spread_dates <- spread(total_words_day, position, total)
 spread_dates <- mutate(spread_dates, total = sum(Business,Doctor,Press,Trump,Whitehouse, na.rm = TRUE))
 spread_dates %>% select(date,Trump,Whitehouse,Doctor,Business,Press)
 
 total_words_day %>%
-        ggplot(aes(x = date, y =total, fill = position)) +
+        ggplot(aes(x = date, y = total)) +
         geom_col() +
+        geom_smooth(method = "lm", se = FALSE, color = "grey", size = 1) +
+        facet_grid(rows = vars(position), margins = TRUE) +
         scale_x_date() +
         theme_apa() +
         scale_fill_brewer(palette = "Set1") +
@@ -198,7 +205,7 @@ speech_words_speaker %>%
         group_by(speaker) %>%
         summarise(total = sum(n)) %>%
         filter(total > 100) %>%
-        arrange(total) %>%
+        arrange(desc(total)) %>%
         ggplot(aes(x = reorder(speaker, total), y = total)) +
         geom_col() +
         coord_flip() +
@@ -233,6 +240,7 @@ gd <- speech_words_position_sr %>%
         arrange(desc(n)) %>%
         group_by(position) %>%
         top_n(50,n) %>%
+        filter(n>3) %>%
         ungroup() %>%
         arrange(position, n) %>%
         mutate(order = row_number()) 
@@ -240,7 +248,7 @@ gd <- speech_words_position_sr %>%
 gd %>%
         ggplot(aes(order,n,fill = position)) +
         geom_col(show.legend = FALSE) +
-        labs(x = NULL, y = "word ratio") +
+        labs(x = NULL, y = "word frequency") +
         facet_wrap( ~ position, ncol = 5, scales = "free") +
         scale_x_continuous(
                 breaks = gd$order,
@@ -281,8 +289,8 @@ gd <- bigrams_united %>%
 gd %>%
         ggplot(aes(order,n,fill = position)) +
         geom_col(show.legend = FALSE) +
-        labs(x = NULL, y = "word ratio") +
-        facet_wrap( ~ position, ncol = 2, scales = "free") +
+        labs(x = NULL, y = "word frequency") +
+        facet_wrap( ~ position, ncol = 4, scales = "free") +
         scale_x_continuous(
                 breaks = gd$order,
                 labels = gd$bigram,
@@ -290,3 +298,11 @@ gd %>%
         ) +
         theme_apa() +
         coord_flip()
+
+# Create frequency table w/ position data 
+table <- speech_words_speaker %>% 
+        left_join(positions, by = "speaker")
+
+table <- distinct(select(table,speaker,position, total))
+table <- arrange(table, desc(total))
+write.table(table,file = "freqtable.txt",sep = ",", quote = F, col.names = F)
